@@ -11,24 +11,24 @@ import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
 import time
 
-# Creates the dico of lane-making factions
 def createFactions():
-    factions = {
-                "Empire" : 0,
-                "Soromid" : 1,
-                "Dvaered" : 2,
-                "Za'lek" : 3,
-                "Collective" : 4, # TODO : see if this one is right
-                "Sirius" : 5,
-                "Frontier" : 6,
-                "Goddard" : 7,
-                "Proteron" : 8,
-                "Thurion" : 9,
-               }
-    
-    colors = ["g","orange","brown","darkred","silver","aqua","y","b","purple","grey"]
-    
-    return (factions, colors)
+    '''Creates the dico of lane-making factions'''
+    factions = [
+                "Empire",
+                "Soromid",
+                "Dvaered",
+                "Za'lek",
+                "Collective", # TODO : see if this one is right
+                "Sirius",
+                "Frontier",
+                "Goddard",
+                "Proteron",
+                "Thurion",
+               ]
+
+    return {name: i for (i, name) in enumerate(factions)}
+
+FACTION_COLORS = ["g","orange","brown","darkred","silver","aqua","y","b","purple","grey"]
 
 # Creates anchors to prevent the matrix from being singular
 # Anchors are jumpoints, there is 1 per connected set of systems
@@ -182,11 +182,9 @@ def inSysStiff( nodess, factass, g2ass, loc2globNs ):
     return ( si, sj, sv, sil, sjl, loc2globs, sr, system )
 
 # Reads all the systems
-def readSystems( path, assets, factions, anchors ):
-    
-    anchorSys = anchors[0]
-    anchorJps = anchors[1]
-    anchorAst = anchors[2]
+def readSystems( path, factions ):
+    assets  = readAssets( '../naev/dat/assets/' )
+    anchorSys, anchorJps, anchorAst = createAnchors()
     
     sysdict = {} # This dico will give index of systems
     sysnames = [] # List giving the invert of sysdict
@@ -760,7 +758,7 @@ def activateBestFact( internal_lanes, g, gl, activated, Lfaction, nodess, pres_c
 
 
 # Display the active lanes
-def printLanes( internal_lanes, activated, Lfaction, nodess, sysnames, colors ):
+def printLanes( internal_lanes, activated, Lfaction, nodess, sysnames ):
     
 #    lanes2print = ["Arcturus", "Delta Pavonis", "Gamma Polaris", "Goddard",\
 #                   "Alteris", "Cygnus", "Za'lek", "Raelid", "Armorhead",\
@@ -803,7 +801,7 @@ def printLanes( internal_lanes, activated, Lfaction, nodess, sysnames, colors ):
                 y1 = nodes[no1][1]
                 y2 = nodes[no2][1]
             
-                col = colors[ Lfaction[jj] ]
+                col = FACTION_COLORS[ Lfaction[jj] ]
                 plt. plot([x1,x2], [y1,y2], color=col)
         
         # Pass to global
@@ -811,7 +809,7 @@ def printLanes( internal_lanes, activated, Lfaction, nodess, sysnames, colors ):
 
 
 # Optimize the lanes
-def optimizeLanes( internal_lanes, default_lanes, alpha, ndof, anchors, nodess, sysnames, ass2g, presences, fcol, assts, sysdist ):
+def optimizeLanes( internal_lanes, default_lanes, alpha, ndof, anchors, nodess, sysnames, ass2g, presences, assts, sysdist ):
     sz = len(internal_lanes[0])
     activated = [False] * sz # Initialization : no lane is activated
     Lfaction = [-1] * sz;
@@ -885,7 +883,7 @@ def optimizeLanes( internal_lanes, default_lanes, alpha, ndof, anchors, nodess, 
         #print(end - start)
 
     # And print the lanes
-    printLanes( internal_lanes, activated, Lfaction, nodess, sysnames, fcol )
+    printLanes( internal_lanes, activated, Lfaction, nodess, sysnames )
     print(np.linalg.norm(utilde,'fro'))
     print(i+1)
     #print(np.linalg.norm(utilde-utilde.transpose(),'fro'))
@@ -893,12 +891,8 @@ def optimizeLanes( internal_lanes, default_lanes, alpha, ndof, anchors, nodess, 
     return (activated, Lfaction)
 
 if __name__ == "__main__":
-    fact     = createFactions()
-    factions = fact[0]
-    fcol     = fact[1]
-    anchors = createAnchors()
-    assets  = readAssets( '../naev/dat/assets/' )
-    systems = readSystems( '../naev/dat/ssys/', assets, factions, anchors )
+    factions = createFactions()
+    systems = readSystems( '../naev/dat/ssys/', factions )
     
     alpha = 9. # Efficiency parameter for lanes    
 
@@ -921,7 +915,7 @@ if __name__ == "__main__":
     # Run the optim algo
     a = time.perf_counter()
     act = optimizeLanes( internal_lanes, default_lanes, alpha, ndof, anchors_index, 
-                         nodess, sysnames, ass2g, presences, fcol, assts, sysdist )
+                         nodess, sysnames, ass2g, presences, assts, sysdist )
     b = time.perf_counter()
     print(b-a," s")
     
