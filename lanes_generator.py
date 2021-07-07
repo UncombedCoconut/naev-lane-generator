@@ -139,7 +139,7 @@ def inSysStiff( nodess, factass, g2ass, loc2globNs ):
                 else: # It's not an asset
                     fm = -1
                 
-                lmn = math.sqrt( (xn-xm)**2 + (yn-ym)**2 )
+                lmn = math.hypot( xn-xm, yn-ym )
                 
                 # Check if very close path exist already.
                 forbitten = False
@@ -151,8 +151,8 @@ def inSysStiff( nodess, factass, g2ass, loc2globNs ):
                     
                     # The scalar product should not be too close to 1
                     # That would mean we've got a flat triangle
-                    lni = math.sqrt((xn-xi)**2 + (yn-yi)**2)
-                    lmi = math.sqrt((xm-xi)**2 + (ym-yi)**2)
+                    lni = math.hypot(xn-xi, yn-yi)
+                    lmi = math.hypot(xm-xi, ym-yi)
                     dpn = ((xn-xm)*(xn-xi) + (yn-ym)*(yn-yi)) / ( lmn * lni )
                     dpm = ((xm-xn)*(xm-xi) + (ym-yn)*(ym-yi)) / ( lmn * lmi )
                     if (dpn > crit and lni < lmn) or (dpm > crit and lmi < lmn):
@@ -622,7 +622,7 @@ def getGradient( internal_lanes, u, lamt, alpha, PP, PPl, pres_0 ):
 
     nfact = len(PPl)
     gl = []
-    #t0 = time.time()
+    #t0 = time.perf_counter()
     #ut = u.transpose()
     for k in range(nfact): # .2
         lal = lamt.dot(PPl[k])
@@ -650,7 +650,7 @@ def getGradient( internal_lanes, u, lamt, alpha, PP, PPl, pres_0 ):
             #glk[i] = alpha*sv[i] * ( LUTl[sis, sis] + LUTl[sjs, sjs] - LUTl[sis, sjs] - LUTl[sjs, sis] )
             
         gl.append(glk)
-    #t2 = time.time()
+    #t2 = time.perf_counter()
     #print(t2-t0)
     return (g,gl)
         
@@ -831,10 +831,10 @@ def optimizeLanes( internal_lanes, default_lanes, alpha, ndof, anchors, nodess, 
         # Compute direct and adjoint state
         if i >= 1:
             utildp = utilde
-        #start = time.time()
+        #start = time.perf_counter()
         #print(stiff.count_nonzero())
         utilde = lgs.spsolve( stiff, ftilde ) # 0.11 s
-        #end = time.time()
+        #end = time.perf_counter()
 
         # Check stopping condition
         nu = np.linalg.norm(utilde,'fro')
@@ -856,11 +856,11 @@ def optimizeLanes( internal_lanes, default_lanes, alpha, ndof, anchors, nodess, 
             
             QQ = (Q.transpose()).dot(Q)
             #QQ = QQ.todense()
-            #start = time.time()
+            #start = time.perf_counter()
             PP0 = P.dot(P.transpose())
             #print(PP0.shape)
             PP = PP0.todense() # PP is actually not sparse
-            #end = time.time()
+            #end = time.perf_counter()
             #print(end-start)
             PPl = [None]*nfact
             for k in range(nfact): # Assemble per-faction ponderators
@@ -919,10 +919,10 @@ if __name__ == "__main__":
     ndof = stiff.shape[0]
     
     # Run the optim algo
-    a = time.time()
+    a = time.perf_counter()
     act = optimizeLanes( internal_lanes, default_lanes, alpha, ndof, anchors_index, 
                          nodess, sysnames, ass2g, presences, fcol, assts, sysdist )
-    b = time.time()
+    b = time.perf_counter()
     print(b-a," s")
     
     activated = act[0]
