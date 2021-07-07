@@ -200,9 +200,6 @@ class Systems:
     ylist = []
     self.presences = [] # List of presences in systems
     
-    nodespres = [] # Presence per node
-    nodesfact = [] # Faction per node
-    
     self.loc2globs = [] # Gives the global numerotation from local one for nodes
     jp2locs = [] # Gives the local numerotation from jump number
     self.ass2g   = [] # Gives the global numerotation from asset one
@@ -272,8 +269,6 @@ class Systems:
                             factass.append(-1)
 #                        if (name in anchorSys and (asname in anchorAst: # Add to anchors
 #                            self.anchors.append( nglob )
-#                        nodespres[nglob] = info[3]
-#                        nodesfact[nglob] = info[2]
                         nglob += 1
                         nass += 1
                         nasg += 1
