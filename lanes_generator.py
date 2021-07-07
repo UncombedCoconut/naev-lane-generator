@@ -182,13 +182,14 @@ def inSysStiff( nodess, factass, g2ass, loc2globNs ):
     return ( si, sj, sv, sil, sjl, loc2globs, sr, system )
 
 # Reads all the systems
-def readSystems( path, factions ):
+class Systems:
+  def __init__( self, path, factions ):
     assets  = readAssets( '../naev/dat/assets/' )
     anchorSys, anchorJps, anchorAst = createAnchors()
     
     sysdict = {} # This dico will give index of systems
-    sysnames = [] # List giving the invert of sysdict
-    nodess = [] # This is a list of nodes in systems
+    self.sysnames = [] # List giving the invert of sysdict
+    self.nodess = [] # This is a list of nodes in systems
     
     jpnames = [] # List of jump points
     jpdicts = [] # List of dict (invert of jpnames)
@@ -197,14 +198,14 @@ def readSystems( path, factions ):
     radius = [] # List of radius of systems
     xlist = []
     ylist = []
-    presences = [] # List of presences in systems
+    self.presences = [] # List of presences in systems
     
     nodespres = [] # Presence per node
     nodesfact = [] # Faction per node
     
-    loc2globs = [] # Gives the global numerotation from local one for nodes
+    self.loc2globs = [] # Gives the global numerotation from local one for nodes
     jp2locs = [] # Gives the local numerotation from jump number
-    ass2g   = [] # Gives the global numerotation from asset one
+    self.ass2g   = [] # Gives the global numerotation from asset one
     g2ass   = [] # Gives asset numerotation from global one
     g2sys   = [] # Gives the system from global numerotation
     
@@ -213,7 +214,7 @@ def readSystems( path, factions ):
     nsys = len(os.listdir(path))
     connect = np.zeros((nsys,nsys)) # Connectivity matrix for systems. TODO : use sparse
     
-    anchors = []
+    self.anchors = []
     presass = [] # List of presences in assets
     factass = [] # Factions in assets. (I'm sorry for all these asses)
     
@@ -227,7 +228,7 @@ def readSystems( path, factions ):
         name = root.attrib['name']
         #print(name)
         sysdict[name] = i
-        sysnames.append(name)
+        self.sysnames.append(name)
         
         pos = root.find('pos')
         xlist.append( float(pos.find('x').text) )
@@ -256,7 +257,7 @@ def readSystems( path, factions ):
                     if info[0] != None: # Check it's not a virual asset
                         nodes.append( (info[0], info[1]) )
                         loc2glob.append(nglob)
-                        ass2g.append(nglob)
+                        self.ass2g.append(nglob)
                         g2ass.append(nasg)
                         g2sys.append(i)
                         if info[2] in factions.keys(): # Store presence
@@ -270,7 +271,7 @@ def readSystems( path, factions ):
                             presass.append(info[3])
                             factass.append(-1)
 #                        if (name in anchorSys and (asname in anchorAst: # Add to anchors
-#                            anchors.append( nglob )
+#                            self.anchors.append( nglob )
 #                        nodespres[nglob] = info[3]
 #                        nodesfact[nglob] = info[2]
                         nglob += 1
@@ -278,7 +279,7 @@ def readSystems( path, factions ):
                         nasg += 1
         
         presence = [max(0,j) for j in presence] # Ensure presences are >= 0
-        presences.append(presence)
+        self.presences.append(presence)
         sysass.append(sysas)
         
         
@@ -326,8 +327,8 @@ def readSystems( path, factions ):
         jpnames.append(jpname)
         jpdicts.append(jpdict)
         jp2locs.append(jp2loc)
-        nodess.append(nodes)
-        loc2globs.append(loc2glob)
+        self.nodess.append(nodes)
+        self.loc2globs.append(loc2glob)
         i += 1
      
     
@@ -342,9 +343,9 @@ def readSystems( path, factions ):
         jpname = jpnames[i]
         autopos = autoposs[i]
         
-        loc2globi = loc2globs[i]
+        loc2globi = self.loc2globs[i]
         jp2loci = jp2locs[i]
-        namei = sysnames[i]
+        namei = self.sysnames[i]
         #print(namei)
         for j in range(len(jpname)):
             k = sysdict[jpname[j]] # Get the index of target
@@ -352,17 +353,17 @@ def readSystems( path, factions ):
             connect[k,i] = 1
             
             jpnamek = jpdicts[k]
-            loc2globk = loc2globs[k]
+            loc2globk = self.loc2globs[k]
             jp2lock = jp2locs[k]
 
             if (namei in anchorSys) and (jpname[j] in anchorJps): # Add to anchors
-                anchors.append( loc2globi[jp2loci[j]] )
+                self.anchors.append( loc2globi[jp2loci[j]] )
             
             if autopos[j]: # Compute autopos stuff
                 theta = math.atan2( ylist[k]-ylist[i], xlist[k]-xlist[i] )
                 x = radius[i] * math.cos(theta)
                 y = radius[i] * math.sin(theta)
-                nodess[i][jp2loci[j]] = (x,y) # Now we have the position
+                self.nodess[i][jp2loci[j]] = (x,y) # Now we have the position
 
             if not ( namei in jpnamek.keys() ):
                 continue # It's an exit-only : we don't count this one as a link
@@ -398,22 +399,22 @@ def readSystems( path, factions ):
                     ran = info[4]
                     d = distances[i,j]
                     if d <= ran:
-                        #presences[i][fact] += pres/(2**d)
-                        presences[i][fact] += pres / (1+d)
+                        #self.presences[i][fact] += pres/(2**d)
+                        self.presences[i][fact] += pres / (1+d)
                         
-#        if sysnames[i] == "Raelid":#"Alteris":
+#        if self.sysnames[i] == "Raelid":#"Alteris":
 #            print(i)
-#            print(presences[i])
+#            print(self.presences[i])
         # TODO maybe : ensure positive presence
         
 
     # Get the stiffness inside systems
-    sisjsv = inSysStiff( nodess, factass, g2ass, loc2globs )
+    self.internal_lanes = inSysStiff( self.nodess, factass, g2ass, self.loc2globs )
 
     # Merge both and generate matrix
-    si = si0 + sisjsv[0]
-    sj = sj0 + sisjsv[1]
-    sv = sv0 + sisjsv[2]
+    si = si0 + self.internal_lanes[0]
+    sj = sj0 + self.internal_lanes[1]
+    sv = sv0 + self.internal_lanes[2]
     sz = len(si)
     
     # Build the sparse matrix
@@ -437,10 +438,11 @@ def readSystems( path, factions ):
         sjj[4*k+3] = si[k]
         svv[4*k+3] = - sv[k]
 
-    stiff = sp.csr_matrix( ( svv, (sii, sjj) ) )
+    self.stiff = sp.csr_matrix( ( svv, (sii, sjj) ) )
 
-    return (presences, nodess, stiff, sisjsv, anchors, loc2globs, sysnames, nodespres,
-            nodesfact, (si0,sj0,sv0), ass2g, (presass,factass), (distances,g2sys))
+    self.default_lanes = (si0,sj0,sv0)
+    self.assts = (presass,factass)
+    self.sysdist = (distances,g2sys)
 
 
 # Computes the conductivity matrix
@@ -809,22 +811,22 @@ def printLanes( internal_lanes, activated, Lfaction, nodess, sysnames ):
 
 
 # Optimize the lanes
-def optimizeLanes( internal_lanes, default_lanes, alpha, ndof, anchors, nodess, sysnames, ass2g, presences, assts, sysdist ):
-    sz = len(internal_lanes[0])
+def optimizeLanes( systems, alpha, ndof ):
+    sz = len(systems.internal_lanes[0])
     activated = [False] * sz # Initialization : no lane is activated
     Lfaction = [-1] * sz;
-    pres_c = presences.copy()
-    nfact = len(presences[0])
+    pres_c = systems.presences.copy()
+    nfact = len(systems.presences[0])
     
-    nass = len(ass2g)
+    nass = len(systems.ass2g)
     
     # TODO : It could be interesting to use sparse format for the RHS as well (see)
     ftilde = np.eye( ndof )
-    ftilde = ftilde[:,ass2g] # Keep only lines corresponding to assets
+    ftilde = ftilde[:,systems.ass2g] # Keep only lines corresponding to assets
     
     niter = 20
     for i in range(niter):
-        stiff = buildStiffness( default_lanes, internal_lanes, activated, alpha, anchors ) # 0.02 s
+        stiff = buildStiffness( systems.default_lanes, systems.internal_lanes, activated, alpha, systems.anchors ) # 0.02 s
 
         # Compute direct and adjoint state
         if i >= 1:
@@ -847,7 +849,7 @@ def optimizeLanes( internal_lanes, default_lanes, alpha, ndof, anchors, nodess, 
         # Compute QQ and PP, and use utilde to detect connected parts of the mesh
         # It's in the loop, but only happends once
         if i == 0: # .5 s
-            Pi = PenMat( nass, ndof, internal_lanes, utilde, ass2g, assts, sysdist )
+            Pi = PenMat( nass, ndof, systems.internal_lanes, utilde, systems.ass2g, systems.assts, systems.sysdist )
             P = Pi[0]
             Q = Pi[1] 
             D = Pi[2]
@@ -871,19 +873,19 @@ def optimizeLanes( internal_lanes, default_lanes, alpha, ndof, anchors, nodess, 
         lamt = lgs.spsolve( stiff, rhs ) #.11 s # TODO if possible : reuse cholesky factorization
         
         # Compute the gradient.
-        gNgl = getGradient( internal_lanes, utilde, lamt, alpha, PP, PPl, pres_c ) # 0.2 s
+        gNgl = getGradient( systems.internal_lanes, utilde, lamt, alpha, PP, PPl, pres_c ) # 0.2 s
         g = gNgl[0]
         gl = gNgl[1]
 
         # Activate one lane per system
-        #activateBest( internal_lanes, g, activated, Lfaction, nodess ) # 0.01 s
-        activateBestFact( internal_lanes, g, gl, activated, Lfaction, nodess, pres_c, presences ) # 0.01 s
+        #activateBest( systems.internal_lanes, g, activated, Lfaction, nodess ) # 0.01 s
+        activateBestFact( systems.internal_lanes, g, gl, activated, Lfaction, systems.nodess, pres_c, systems.presences ) # 0.01 s
 
-    #print(np.max(np.c_[internal_lanes[2]]))
+    #print(np.max(np.c_[systems.internal_lanes[2]]))
         #print(end - start)
 
     # And print the lanes
-    printLanes( internal_lanes, activated, Lfaction, nodess, sysnames )
+    printLanes( systems.internal_lanes, activated, Lfaction, systems.nodess, systems.sysnames )
     print(np.linalg.norm(utilde,'fro'))
     print(i+1)
     #print(np.linalg.norm(utilde-utilde.transpose(),'fro'))
@@ -892,30 +894,15 @@ def optimizeLanes( internal_lanes, default_lanes, alpha, ndof, anchors, nodess, 
 
 if __name__ == "__main__":
     factions = createFactions()
-    systems = readSystems( '../naev/dat/ssys/', factions )
+    systems = Systems( '../naev/dat/ssys/', factions )
     
     alpha = 9. # Efficiency parameter for lanes    
-
-    presences = systems[0]
-    nodess = systems[1]
-    stiff = systems[2]
-    internal_lanes = systems[3]
-    anchors_index = systems[4]
-    loc2globs = systems[5]
-    sysnames = systems[6]
-    nodespres = systems[7]
-    nodesfact = systems[8]
-    default_lanes = systems[9]
-    ass2g = systems[10]
-    assts = systems[11] # presass and factass TDOD : DEBUG
-    sysdist = systems[12] # Distance between 2 systems
     
-    ndof = stiff.shape[0]
+    ndof = systems.stiff.shape[0]
     
     # Run the optim algo
     a = time.perf_counter()
-    act = optimizeLanes( internal_lanes, default_lanes, alpha, ndof, anchors_index, 
-                         nodess, sysnames, ass2g, presences, assts, sysdist )
+    act = optimizeLanes( systems, alpha, ndof )
     b = time.perf_counter()
     print(b-a," s")
     
@@ -925,13 +912,13 @@ if __name__ == "__main__":
     
     
 def uselessStuff():
-    Pi = PenMat( stiff.shape[0], internal_lanes ) # Get the ponderator matrix. TODO : ti should not be stiff.shape, but the nb of assets
+    Pi = PenMat( systems.stiff.shape[0], systems.internal_lanes ) # Get the ponderator matrix. TODO : ti should not be stiff.shape, but the nb of assets
     P = Pi[0]
     Q = Pi[1]
     
-    mu = stiff.max()  # Just a parameter to make a Robin condition that does not spoil the spectrum of the matrix
-    stiffk = stiff.copy()
-    for i in anchors_index:
+    mu = systems.stiff.max()  # Just a parameter to make a Robin condition that does not spoil the spectrum of the matrix
+    stiffk = systems.stiff.copy()
+    for i in systems.anchors:
         stiffk[i,i] = stiffk[i,i] + mu
         
     #A = stiffk.todense()
@@ -952,14 +939,11 @@ def uselessStuff():
     rhs = - QQ.dot(u1)
     lam = lgs.spsolve( stiffk, rhs ) # TODO : reuse cholesky factorization
     
-    g = getGradient( internal_lanes, utilde, lam, alpha )
+    g = getGradient( systems.internal_lanes, utilde, lam, alpha )
     
     # Find lanes to keep in each system
-    sv  = internal_lanes[2]
-    sil = internal_lanes[3]
-    sjl = internal_lanes[4]
-    lanesLoc2globs = internal_lanes[5]
-    nsys = len(nodess)
+    sv, sil, sjl, lanesLoc2globs = systems.internal_lanes[2:6]
+    nsys = len(systems.nodess)
     tokeeps = []
     
     g1 = g * np.c_[sv] # Short lanes are more interesting
@@ -967,14 +951,14 @@ def uselessStuff():
     #n = 0
     lanes2print = ["Arcturus", "Delta Pavonis", "Gamma Polaris", "Goddard", "Alteris", "Cygnus"]
     for i in range(nsys): 
-        if not (sysnames[i] in lanes2print):
+        if not (systems.sysnames[i] in lanes2print):
             continue
         
 #        loc2glob = loc2globs[i]
         lanesLoc2glob = lanesLoc2globs[i]
-        nodes = nodess[i]
+        nodes = systems.nodess[i]
         
-        print(sysnames[i])
+        print(systems.sysnames[i])
         
         gloc = g1[lanesLoc2glob]
         ind1 = np.argsort(gloc.transpose()) # For some reason, it does not work without transpose :/
@@ -1006,12 +990,12 @@ def uselessStuff():
         plt.show()
         tokeeps.append(tokeep)
     
-    #computeCostFunction( stiff, factions )
-    #isti = lg.inv(stiff)
-    #e = np.eye( stiff.shape[0] )
+    #computeCostFunction( systems.stiff, factions )
+    #isti = lg.inv(systems.stiff)
+    #e = np.eye( systems.stiff.shape[0] )
     # TODO : find the kernel
-    #isti = lgs.spsolve( stiff, e )
-    #u, s, vh = lgs.svds(stiff)
+    #isti = lgs.spsolve( systems.stiff, e )
+    #u, s, vh = lgs.svds(systems.stiff)
     
 #    tree = ET.parse('../naev/dat/ssys/alteris.xml')
 #    root = tree.getroot()
