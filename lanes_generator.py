@@ -38,30 +38,24 @@ def createFactions():
 # separate sets of systems.
 def createAnchors(): # TODO : understand what's going on with anchors
     anchorSys = [
-                 "Navajo",
                  "Alteris",
                  "Flow",
                  "Zied",        # TODO : be sure this one is necessary
                  "Qorel",
-                 "Sioux",
                 ]
     
     anchorJps = [
-                 "Iroquois",
                  "Delta Pavonis",
                  "Aesria",
                  "Pudas",
                  "Firk",
-                "Iroquois",
                 ]
     
     anchorAst = [
-                 "Rin",
                  "Darkshed",
                  "Sevlow",
                  "Bon Sebb",
                  "Qorellia",
-                 # MM And this one in Sioux...
                 ]
     
     return (anchorSys, anchorJps, anchorAst)
