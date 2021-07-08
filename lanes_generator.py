@@ -5,9 +5,9 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as lgs
 import scipy.linalg as slg
 import math
-import matplotlib.pyplot as plt
 import time
 
+from lanes_ui import printLanes
 from lanes_systems import Systems
 
 def createFactions():
@@ -26,8 +26,6 @@ def createFactions():
                ]
 
     return {name: i for (i, name) in enumerate(factions)}
-
-FACTION_COLORS = ["g","orange","brown","darkred","silver","aqua","y","b","purple","grey"]
 
 # Creates anchors to prevent the matrix from being singular
 # Anchors are jumpoints, there is 1 per connected set of systems
@@ -573,60 +571,10 @@ def activateBestFact( internal_lanes, g, gl, activated, Lfaction, nodess, pres_c
     return 1
 
 
-# Display the active lanes
-def printLanes( internal_lanes, activated, Lfaction, nodess, sysnames ):
-    
-#    lanes2print = ["Arcturus", "Delta Pavonis", "Gamma Polaris", "Goddard",\
-#                   "Alteris", "Cygnus", "Za'lek", "Raelid", "Armorhead",\
-#                   "Pudas", "Aesir", "Eye of Night", "Pilatis", "Pisces Prime",\
-#                   "Fidelis"]
-    #lanes2print = ["Arcturus", "Gamma Polaris", "Goddard", "Za'lek", "Alteris", "Pilatis"]
-    #lanes2print = ["Eye of Night", "Armorhead", "Gamma Polaris"]
-    #lanes2print = ["Raelid"]
-    lanes2print = ["Fidelis"]
-    
-    nsys = len(nodess)
-    sil = internal_lanes[3]
-    sjl = internal_lanes[4]
-    lanesLoc2globs = internal_lanes[5]
-    
-    for i in range(nsys):
-        if not (sysnames[i] in lanes2print):
-            continue
-        
-        print(sysnames[i])
-        nodes = nodess[i]
-        lanesLoc2glob = lanesLoc2globs[i]
-        aloc = [activated[k] for k in lanesLoc2glob]
-        #floc = [Lfaction[k] for k in lanesLoc2glob]
-        
-        plt.figure()
-        xlist = [nodes[no][0] for no in range(len(nodes))]
-        ylist = [nodes[no][1] for no in range(len(nodes))]
-        plt.scatter(xlist, ylist, color='b')
-        
-        for j in range(len(aloc)):
-            if aloc[j]:
-                jj = lanesLoc2glob[j]
-
-                no1 = sil[jj]
-                no2 = sjl[jj]
-            
-                x1 = nodes[no1][0]
-                x2 = nodes[no2][0]
-                y1 = nodes[no1][1]
-                y2 = nodes[no2][1]
-            
-                col = FACTION_COLORS[ Lfaction[jj] ]
-                plt. plot([x1,x2], [y1,y2], color=col)
-        
-        # Pass to global
-        plt.show()
-
-
-# Optimize the lanes
-def optimizeLanes( systems, alpha, ndof ):
+def optimizeLanes( systems, alpha=9 ):
+    '''Optimize the lanes. alpha is the efficiency parameter for lanes.'''
     sz = len(systems.internal_lanes[0])
+    ndof = systems.stiff.shape[0]
     activated = [False] * sz # Initialization : no lane is activated
     Lfaction = [-1] * sz;
     pres_c = systems.presences.copy()
@@ -709,13 +657,9 @@ if __name__ == "__main__":
     factions = createFactions()
     systems = ProcessedSystems( '../naev/dat/ssys/', factions )
     
-    alpha = 9. # Efficiency parameter for lanes    
-    
-    ndof = systems.stiff.shape[0]
-    
     # Run the optim algo
     a = time.perf_counter()
-    activated, Lfaction = optimizeLanes( systems, alpha, ndof )
+    activated, Lfaction = optimizeLanes( systems )
     b = time.perf_counter()
     print(b-a," s")
     printLanes( systems.internal_lanes, activated, Lfaction, systems.nodess, systems.sysnames )
