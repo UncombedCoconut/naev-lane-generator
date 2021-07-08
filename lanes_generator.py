@@ -699,7 +699,6 @@ def optimizeLanes( systems, alpha, ndof ):
         #print(end - start)
 
     # And print the lanes
-    printLanes( systems.internal_lanes, activated, Lfaction, systems.nodess, systems.sysnames )
     print(np.linalg.norm(utilde,'fro'))
     print(i+1)
     #print(np.linalg.norm(utilde-utilde.transpose(),'fro'))
@@ -716,10 +715,7 @@ if __name__ == "__main__":
     
     # Run the optim algo
     a = time.perf_counter()
-    act = optimizeLanes( systems, alpha, ndof )
+    activated, Lfaction = optimizeLanes( systems, alpha, ndof )
     b = time.perf_counter()
     print(b-a," s")
-    
-    activated = act[0]
-    Lfaction = act[1]
-    # TODO: put that into xml
+    printLanes( systems.internal_lanes, activated, Lfaction, systems.nodess, systems.sysnames )
