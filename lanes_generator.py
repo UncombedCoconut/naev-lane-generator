@@ -181,35 +181,33 @@ def inSysStiff( nodess, factass, g2ass, loc2globNs ):
 
     return ( si, sj, sv, sil, sjl, loc2globs, sr, system )
 
-# Reads all the systems
 class Systems:
+    '''Readable representation of the systems.'''
     def __init__( self, path, factions ):
-        assets  = readAssets( '../naev/dat/assets/' )
-        anchorSys, anchorJps, anchorAst = createAnchors()
+        self.assets  = readAssets( '../naev/dat/assets/' )
 
-        sysdict = {} # This dico will give index of systems
-        self.sysnames = [] # List giving the invert of sysdict
+        self.sysdict = {} # This dico will give index of systems
+        self.sysnames = [] # List giving the invert of self.sysdict
         self.nodess = [] # This is a list of nodes in systems
 
-        jpnames = [] # List of jump points
-        jpdicts = [] # List of dict (invert of jpnames)
+        self.jpnames = [] # List of jump points
+        self.jpdicts = [] # List of dict (invert of self.jpnames)
 
-        autoposs = []
-        radius = [] # List of radius of systems
-        xlist = []
-        ylist = []
+        self.autoposs = []
+        self.radius = [] # List of radius of systems
+        self.xlist = []
+        self.ylist = []
         self.presences = [] # List of presences in systems
 
         self.loc2globs = [] # Gives the global numerotation from local one for nodes
-        jp2locs = [] # Gives the local numerotation from jump number
+        self.jp2locs = [] # Gives the local numerotation from jump number
         self.ass2g   = [] # Gives the global numerotation from asset one
-        g2ass   = [] # Gives asset numerotation from global one
-        g2sys   = [] # Gives the system from global numerotation
+        self.g2ass   = [] # Gives asset numerotation from global one
+        self.g2sys   = [] # Gives the system from global numerotation
 
-        sysass = [] # Assets names per system
+        self.sysass = [] # Assets names per system
 
         nsys = len(os.listdir(path))
-        connect = np.zeros((nsys,nsys)) # Connectivity matrix for systems. TODO : use sparse
 
         self.anchors = []
         presass = [] # List of presences in assets
@@ -224,15 +222,15 @@ class Systems:
 
             name = root.attrib['name']
             #print(name)
-            sysdict[name] = i
+            self.sysdict[name] = i
             self.sysnames.append(name)
 
             pos = root.find('pos')
-            xlist.append( float(pos.find('x').text) )
-            ylist.append( float(pos.find('y').text) )
+            self.xlist.append( float(pos.find('x').text) )
+            self.ylist.append( float(pos.find('y').text) )
 
             general = root.find('general')
-            radius.append( float(general.find('radius').text) )
+            self.radius.append( float(general.find('radius').text) )
 
             # Store list of nodes (without jumps)
             nodes = []
@@ -247,7 +245,7 @@ class Systems:
                 for pnt in aslist :
                     asname = pnt.text
                     sysas.append(asname)
-                    info = assets[asname]
+                    info = self.assets[asname]
                     if info[3] > 0: # Check the asset is actually inhabited
                         #if info[2] in factions.keys(): # Increment presence
                          #   presence[ factions[info[2]] ] += info[3]
@@ -255,8 +253,8 @@ class Systems:
                             nodes.append( (info[0], info[1]) )
                             loc2glob.append(nglob)
                             self.ass2g.append(nglob)
-                            g2ass.append(nasg)
-                            g2sys.append(i)
+                            self.g2ass.append(nasg)
+                            self.g2sys.append(i)
                             if info[2] in factions.keys(): # Store presence
                                 presass.append(info[3])
                                 factass.append(factions[info[2]])
@@ -267,15 +265,13 @@ class Systems:
                             else: # Someone that does not build
                                 presass.append(info[3])
                                 factass.append(-1)
-#                            if (name in anchorSys and (asname in anchorAst: # Add to anchors
-#                                self.anchors.append( nglob )
                             nglob += 1
                             nass += 1
                             nasg += 1
 
             presence = [max(0,j) for j in presence] # Ensure presences are >= 0
             self.presences.append(presence)
-            sysass.append(sysas)
+            self.sysass.append(sysas)
 
 
             # Store jump points.
@@ -310,54 +306,54 @@ class Systems:
 
                 jp2loc.append(nass+jjj)
                 loc2glob.append(nglob)
-                g2ass.append(-1)
-                g2sys.append(i)
+                self.g2ass.append(-1)
+                self.g2sys.append(i)
                 nglob += 1
                 jpname.append(jpt.attrib['target'])
                 jpdict[jpt.attrib['target']] = jjj
 
                 jjj += 1
 
-            autoposs.append(autopos)
-            jpnames.append(jpname)
-            jpdicts.append(jpdict)
-            jp2locs.append(jp2loc)
+            self.autoposs.append(autopos)
+            self.jpnames.append(jpname)
+            self.jpdicts.append(jpdict)
+            self.jp2locs.append(jp2loc)
             self.nodess.append(nodes)
             self.loc2globs.append(loc2glob)
             i += 1
 
+        self.assts = (presass,factass)
 
-        # Second loop over systems in order to create nodes associated to jumps
-        # And to populate the connectivity matrix (for ranged presence)
+
+class ProcessedSystems(Systems):
+    '''Representation of the systems, with more calculated: nodes associated to jumps, connectivity matrix (for ranged presence).'''
+    def __init__( self, path, factions ):
+        super().__init__( path, factions )
         si0 = [] #
         sj0 = [] #
         sv0 = [] # For the construction of the sparse weighted connectivity matrix
+        nsys = len(self.sysnames)
+        connect = np.zeros((nsys,nsys)) # Connectivity matrix for systems. TODO : use sparse
+        anchorSys, anchorJps, anchorAst = createAnchors()
 
-        for i in range(nsys):
-
-            jpname = jpnames[i]
-            autopos = autoposs[i]
-
-            loc2globi = self.loc2globs[i]
-            jp2loci = jp2locs[i]
-            namei = self.sysnames[i]
+        for i, (jpname, autopos, loc2globi, jp2loci, namei) in enumerate(zip(self.jpnames, self.autoposs, self.loc2globs, self.jp2locs, self.sysnames)):
             #print(namei)
             for j in range(len(jpname)):
-                k = sysdict[jpname[j]] # Get the index of target
+                k = self.sysdict[jpname[j]] # Get the index of target
                 connect[i,k] = 1 # Systems connectivity
                 connect[k,i] = 1
 
-                jpnamek = jpdicts[k]
+                jpnamek = self.jpdicts[k]
                 loc2globk = self.loc2globs[k]
-                jp2lock = jp2locs[k]
+                jp2lock = self.jp2locs[k]
 
                 if (namei in anchorSys) and (jpname[j] in anchorJps): # Add to anchors
                     self.anchors.append( loc2globi[jp2loci[j]] )
 
                 if autopos[j]: # Compute autopos stuff
-                    theta = math.atan2( ylist[k]-ylist[i], xlist[k]-xlist[i] )
-                    x = radius[i] * math.cos(theta)
-                    y = radius[i] * math.sin(theta)
+                    theta = math.atan2( self.ylist[k]-self.ylist[i], self.xlist[k]-self.xlist[i] )
+                    x = self.radius[i] * math.cos(theta)
+                    y = self.radius[i] * math.sin(theta)
                     self.nodess[i][jp2loci[j]] = (x,y) # Now we have the position
 
                 if not ( namei in jpnamek.keys() ):
@@ -385,9 +381,9 @@ class Systems:
         # Use distances to compute ranged presences
         for i in range(nsys):
             for j in range(nsys):
-                sysas = sysass[j]
+                sysas = self.sysass[j]
                 for k in range(len(sysas)):
-                    info = assets[sysas[k]] # not really optimized, but should be OK
+                    info = self.assets[sysas[k]] # not really optimized, but should be OK
                     if info[2] in factions.keys():
                         fact = factions[ info[2] ]
                         pres = info[3]
@@ -404,7 +400,7 @@ class Systems:
 
 
         # Get the stiffness inside systems
-        self.internal_lanes = inSysStiff( self.nodess, factass, g2ass, self.loc2globs )
+        self.internal_lanes = inSysStiff( self.nodess, self.assts[1], self.g2ass, self.loc2globs )
 
         # Merge both and generate matrix
         si = si0 + self.internal_lanes[0]
@@ -436,8 +432,7 @@ class Systems:
         self.stiff = sp.csr_matrix( ( svv, (sii, sjj) ) )
 
         self.default_lanes = (si0,sj0,sv0)
-        self.assts = (presass,factass)
-        self.sysdist = (distances,g2sys)
+        self.sysdist = (distances,self.g2sys)
 
 
 # Computes the conductivity matrix
@@ -889,7 +884,7 @@ def optimizeLanes( systems, alpha, ndof ):
 
 if __name__ == "__main__":
     factions = createFactions()
-    systems = Systems( '../naev/dat/ssys/', factions )
+    systems = ProcessedSystems( '../naev/dat/ssys/', factions )
     
     alpha = 9. # Efficiency parameter for lanes    
     
