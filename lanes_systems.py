@@ -1,9 +1,16 @@
 import os
 import xml.etree.ElementTree as ET
 
+def parse_pos(pos):
+    if pos is None:
+        return (None, None)
+    elif 'x' in pos.attrib:
+        return ( float(pos.attrib['x']), float(pos.attrib['y']) )
+    else:
+        return ( float(pos.find('x').text), float(pos.find('y').text) )
 
-# Reads all the assets
 def readAssets( path ):
+    '''Reads all the assets'''
     assets = {}
     
     for fileName in os.listdir(path):
@@ -12,13 +19,7 @@ def readAssets( path ):
         
         name = root.attrib['name']
         
-        pos = root.find('pos')
-        if pos == None: # It's a virtual asset
-            x = None
-            y = None
-        else:
-            x = float(pos.find('x').text)
-            y = float(pos.find('y').text)
+        x, y = parse_pos(root.find('pos'))
         
         presence = root.find('presence')
         if presence == None: # Inhabited
@@ -78,9 +79,9 @@ class Systems:
             self.sysdict[name] = i
             self.sysnames.append(name)
 
-            pos = root.find('pos')
-            self.xlist.append( float(pos.find('x').text) )
-            self.ylist.append( float(pos.find('y').text) )
+            x, y = parse_pos(root.find('pos'))
+            self.xlist.append( x )
+            self.ylist.append( y )
 
             general = root.find('general')
             self.radius.append( float(general.find('radius').text) )
@@ -111,10 +112,6 @@ class Systems:
                             if info[2] in factions.keys(): # Store presence
                                 presass.append(info[3])
                                 factass.append(factions[info[2]])
-
-                                #if asname == "Raelid Outpost":
-                                    #print(len(factass))
-                                    #print(factions[info[2]])
                             else: # Someone that does not build
                                 presass.append(info[3])
                                 factass.append(-1)
@@ -135,8 +132,6 @@ class Systems:
             jumps = root.find('jumps')
             jplist = jumps.findall('jump')
             jjj = 0
-#            for jj in range(len(jplist)) :
-#                jpt = jplist[jj]
             for jpt in jplist :
 
                 hid = jpt.find('hidden')
@@ -147,15 +142,8 @@ class Systems:
                 if xit != None:  # Jump is exit only : don't consider it
                     continue
 
-                pos = jpt.find('pos')
-                if pos == None: # Autopos is activated: need a second loop
-                    nodes.append( (None, None) ) # Unknown x and y for now
-                    autopos.append(True)
-                else: # Position is given : create a node
-                    x = float(pos.attrib['x'])
-                    y = float(pos.attrib['y'])
-                    nodes.append( (x, y) )
-                    autopos.append(False)
+                nodes.append( parse_pos( jpt.find('pos') ) )
+                autopos.append( nodes[-1] == (None, None) )  # If autopos is activated, need a second loop
 
                 jp2loc.append(nass+jjj)
                 loc2glob.append(nglob)
