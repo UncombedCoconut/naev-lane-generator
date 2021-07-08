@@ -3,13 +3,12 @@
 import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as lgs
-#from scipy.linalg import null_space
 import scipy.linalg as slg
 import math
-import os
-import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
 import time
+
+from lanes_systems import Systems
 
 def createFactions():
     '''Creates the dico of lane-making factions'''
@@ -60,38 +59,6 @@ def createAnchors(): # TODO : understand what's going on with anchors
     
     return (anchorSys, anchorJps, anchorAst)
 
-# Reads all the assets
-def readAssets( path ):
-    assets = {}
-    
-    for fileName in os.listdir(path):
-        tree = ET.parse((path+fileName))
-        root = tree.getroot()
-        
-        name = root.attrib['name']
-        
-        pos = root.find('pos')
-        if pos == None: # It's a virtual asset
-            x = None
-            y = None
-        else:
-            x = float(pos.find('x').text)
-            y = float(pos.find('y').text)
-        
-        presence = root.find('presence')
-        if presence == None: # Inhabited
-            faction = 'nobody'
-            population = 0
-            ran = 0
-        else:
-            faction = presence.find('faction').text
-            population = float(presence.find('value').text)
-            ran = int(presence.find('range').text)
-
-        assets[name] = ( x, y, faction, population, ran )
-    
-    return assets
-    
 
 # Compute insystem paths. TODO maybe : use Delauney triangulation instead ?
 def inSysStiff( nodess, factass, g2ass, loc2globNs ):
@@ -180,149 +147,6 @@ def inSysStiff( nodess, factass, g2ass, loc2globNs ):
         loc2globs.append(loc2glob)
 
     return ( si, sj, sv, sil, sjl, loc2globs, sr, system )
-
-class Systems:
-    '''Readable representation of the systems.'''
-    def __init__( self, path, factions ):
-        self.assets  = readAssets( '../naev/dat/assets/' )
-
-        self.sysdict = {} # This dico will give index of systems
-        self.sysnames = [] # List giving the invert of self.sysdict
-        self.nodess = [] # This is a list of nodes in systems
-
-        self.jpnames = [] # List of jump points
-        self.jpdicts = [] # List of dict (invert of self.jpnames)
-
-        self.autoposs = []
-        self.radius = [] # List of radius of systems
-        self.xlist = []
-        self.ylist = []
-        self.presences = [] # List of presences in systems
-
-        self.loc2globs = [] # Gives the global numerotation from local one for nodes
-        self.jp2locs = [] # Gives the local numerotation from jump number
-        self.ass2g   = [] # Gives the global numerotation from asset one
-        self.g2ass   = [] # Gives asset numerotation from global one
-        self.g2sys   = [] # Gives the system from global numerotation
-
-        self.sysass = [] # Assets names per system
-
-        nsys = len(os.listdir(path))
-
-        self.anchors = []
-        presass = [] # List of presences in assets
-        factass = [] # Factions in assets. (I'm sorry for all these asses)
-
-        i = 0 # No of system
-        nglob = 0 # Global nb of nodes
-        nasg = 0 # Global nb of assest
-        for fileName in os.listdir(path):
-            tree = ET.parse((path+fileName))
-            root = tree.getroot()
-
-            name = root.attrib['name']
-            #print(name)
-            self.sysdict[name] = i
-            self.sysnames.append(name)
-
-            pos = root.find('pos')
-            self.xlist.append( float(pos.find('x').text) )
-            self.ylist.append( float(pos.find('y').text) )
-
-            general = root.find('general')
-            self.radius.append( float(general.find('radius').text) )
-
-            # Store list of nodes (without jumps)
-            nodes = []
-            presence = [0] * len(factions)
-            assts = root.find('assets')
-            loc2glob = []
-            sysas = []
-            nass = 0
-
-            if assts != None:
-                aslist = assts.findall('asset')
-                for pnt in aslist :
-                    asname = pnt.text
-                    sysas.append(asname)
-                    info = self.assets[asname]
-                    if info[3] > 0: # Check the asset is actually inhabited
-                        #if info[2] in factions.keys(): # Increment presence
-                         #   presence[ factions[info[2]] ] += info[3]
-                        if info[0] != None: # Check it's not a virual asset
-                            nodes.append( (info[0], info[1]) )
-                            loc2glob.append(nglob)
-                            self.ass2g.append(nglob)
-                            self.g2ass.append(nasg)
-                            self.g2sys.append(i)
-                            if info[2] in factions.keys(): # Store presence
-                                presass.append(info[3])
-                                factass.append(factions[info[2]])
-
-                                #if asname == "Raelid Outpost":
-                                    #print(len(factass))
-                                    #print(factions[info[2]])
-                            else: # Someone that does not build
-                                presass.append(info[3])
-                                factass.append(-1)
-                            nglob += 1
-                            nass += 1
-                            nasg += 1
-
-            presence = [max(0,j) for j in presence] # Ensure presences are >= 0
-            self.presences.append(presence)
-            self.sysass.append(sysas)
-
-
-            # Store jump points.
-            jpname = []
-            jpdict = {}
-            autopos = []
-            jp2loc = []
-            jumps = root.find('jumps')
-            jplist = jumps.findall('jump')
-            jjj = 0
-#            for jj in range(len(jplist)) :
-#                jpt = jplist[jj]
-            for jpt in jplist :
-
-                hid = jpt.find('hidden')
-                if hid != None:  # Jump is hidden : don't consider it
-                    continue
-
-                xit = jpt.find('exitonly')
-                if xit != None:  # Jump is exit only : don't consider it
-                    continue
-
-                pos = jpt.find('pos')
-                if pos == None: # Autopos is activated: need a second loop
-                    nodes.append( (None, None) ) # Unknown x and y for now
-                    autopos.append(True)
-                else: # Position is given : create a node
-                    x = float(pos.attrib['x'])
-                    y = float(pos.attrib['y'])
-                    nodes.append( (x, y) )
-                    autopos.append(False)
-
-                jp2loc.append(nass+jjj)
-                loc2glob.append(nglob)
-                self.g2ass.append(-1)
-                self.g2sys.append(i)
-                nglob += 1
-                jpname.append(jpt.attrib['target'])
-                jpdict[jpt.attrib['target']] = jjj
-
-                jjj += 1
-
-            self.autoposs.append(autopos)
-            self.jpnames.append(jpname)
-            self.jpdicts.append(jpdict)
-            self.jp2locs.append(jp2loc)
-            self.nodess.append(nodes)
-            self.loc2globs.append(loc2glob)
-            i += 1
-
-        self.assts = (presass,factass)
 
 
 class ProcessedSystems(Systems):
@@ -899,94 +723,3 @@ if __name__ == "__main__":
     activated = act[0]
     Lfaction = act[1]
     # TODO: put that into xml
-    
-    
-def uselessStuff():
-    Pi = PenMat( systems.stiff.shape[0], systems.internal_lanes ) # Get the ponderator matrix. TODO : ti should not be stiff.shape, but the nb of assets
-    P = Pi[0]
-    Q = Pi[1]
-    
-    mu = systems.stiff.max()  # Just a parameter to make a Robin condition that does not spoil the spectrum of the matrix
-    stiffk = systems.stiff.copy()
-    for i in systems.anchors:
-        stiffk[i,i] = stiffk[i,i] + mu
-        
-    #A = stiffk.todense()
-    
-    #theta, U = np.linalg.eig(A)
-    #np.eigvals     #null_space(A)
-    
-    ftilde = np.eye( stiffk.shape[0] ) # TODO : only those corresponding to assets
-    utilde = lgs.spsolve( stiffk, ftilde )
-    # TODO maybe : at first iterate, identify non-connex parts
-    #utt    = np.linalg.solve( A, ftilde[:,1] )
-    #lam = np.matmult( np.matmul(np.transpose(Pi),Pi) , utilde )
-    QQ = (Q.transpose()).dot(Q)
-    #QQ = np.transpose(Q).dot(Q)
-    PP = P.dot(P.transpose())
-    u1t = (PP.transpose()).dot(utilde)
-    u1 = u1t.transpose()    # Manoeuvers in order to have always sparse matrices first
-    rhs = - QQ.dot(u1)
-    lam = lgs.spsolve( stiffk, rhs ) # TODO : reuse cholesky factorization
-    
-    g = getGradient( systems.internal_lanes, utilde, lam, alpha )
-    
-    # Find lanes to keep in each system
-    sv, sil, sjl, lanesLoc2globs = systems.internal_lanes[2:6]
-    nsys = len(systems.nodess)
-    tokeeps = []
-    
-    g1 = g * np.c_[sv] # Short lanes are more interesting
-    
-    #n = 0
-    lanes2print = ["Arcturus", "Delta Pavonis", "Gamma Polaris", "Goddard", "Alteris", "Cygnus"]
-    for i in range(nsys): 
-        if not (systems.sysnames[i] in lanes2print):
-            continue
-        
-#        loc2glob = loc2globs[i]
-        lanesLoc2glob = lanesLoc2globs[i]
-        nodes = systems.nodess[i]
-        
-        print(systems.sysnames[i])
-        
-        gloc = g1[lanesLoc2glob]
-        ind1 = np.argsort(gloc.transpose()) # For some reason, it does not work without transpose :/
-        ind = [lanesLoc2glob[k] for k in ind1[0]]
-        
-        # Find which lanes to activate. TODO : better way
-        ng = gloc.shape[0]
-        #nk = int(ng/5) # Keep half of lanes
-        nk = min(1,ng)
-        tokeep = [ind[k] for k in range(nk)]
-        
-        plt.figure()
-        for j in range(nk):
-            no1 = sil[tokeep[j]]
-            no2 = sjl[tokeep[j]]
-            
-            x1 = nodes[no1][0]
-            x2 = nodes[no2][0]
-            y1 = nodes[no1][1]
-            y2 = nodes[no2][1]
-            
-            plt. plot([x1,x2], [y1,y2])
-            
-        xlist = [nodes[no][0] for no in range(len(nodes))]
-        ylist = [nodes[no][1] for no in range(len(nodes))]
-        plt.scatter(xlist,ylist)
-        #print(tokeep)
-        # Pass to global
-        plt.show()
-        tokeeps.append(tokeep)
-    
-    #computeCostFunction( systems.stiff, factions )
-    #isti = lg.inv(systems.stiff)
-    #e = np.eye( systems.stiff.shape[0] )
-    # TODO : find the kernel
-    #isti = lgs.spsolve( systems.stiff, e )
-    #u, s, vh = lgs.svds(systems.stiff)
-    
-#    tree = ET.parse('../naev/dat/ssys/alteris.xml')
-#    root = tree.getroot()
-#    assets = root.find('assets')
