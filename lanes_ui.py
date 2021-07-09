@@ -3,52 +3,60 @@ import matplotlib.pyplot as plt
 FACTION_COLORS = ["g","orange","brown","darkred","silver","aqua","y","b","purple","grey"]
 
 
-# Display the active lanes
-def printLanes( internal_lanes, activated, Lfaction, nodess, sysnames ):
-    
-#    lanes2print = ["Arcturus", "Delta Pavonis", "Gamma Polaris", "Goddard",\
-#                   "Alteris", "Cygnus", "Za'lek", "Raelid", "Armorhead",\
-#                   "Pudas", "Aesir", "Eye of Night", "Pilatis", "Pisces Prime",\
-#                   "Fidelis"]
-    #lanes2print = ["Arcturus", "Gamma Polaris", "Goddard", "Za'lek", "Alteris", "Pilatis"]
-    #lanes2print = ["Eye of Night", "Armorhead", "Gamma Polaris"]
-    #lanes2print = ["Raelid"]
-    lanes2print = ["Fidelis"]
-    
-    nsys = len(nodess)
+def printLanes( internal_lanes, activated, Lfaction, systems ):
+    '''Display the active lanes'''
+    nsys = len(systems.nodess)
     sil = internal_lanes[3]
     sjl = internal_lanes[4]
     lanesLoc2globs = internal_lanes[5]
     
-    for i in range(nsys):
-        if not (sysnames[i] in lanes2print):
-            continue
-        
-        print(sysnames[i])
-        nodes = nodess[i]
+    fig, (glob_ax, loc_ax) = plt.subplots(1, 2, figsize=(18, 10))
+    globmap = glob_ax.scatter(systems.xlist ,systems.ylist, color='b')
+    for i, jpname in enumerate(systems.jpnames):
+        for target in jpname:
+            j = systems.sysdict[target]
+            glob_ax.plot([systems.xlist[i], systems.xlist[j]], [systems.ylist[i], systems.ylist[j]], color='r')
+
+    annot = glob_ax.annotate('', xy=(0, 0), xytext=(20, 20), textcoords='offset points', bbox={'fc': 'w'})
+    annot.set_visible(False)
+
+    def hover(event):
+        vis = annot.get_visible()
+        if event.inaxes == glob_ax:
+            cont, ind = globmap.contains(event)
+            if cont:
+                n = ind['ind'][0]
+                plot_system(n)
+                annot.xy = globmap.get_offsets()[n]
+                annot.set_text(systems.sysnames[n])
+                annot.set_visible(True)
+                fig.canvas.draw_idle()
+            elif vis:
+                annot.set_visible(False)
+                fig.canvas.draw_idle()
+
+    fig.canvas.mpl_connect('motion_notify_event', hover)
+
+    def plot_system(i):
+        nodes = systems.nodess[i]
         lanesLoc2glob = lanesLoc2globs[i]
         aloc = [activated[k] for k in lanesLoc2glob]
         #floc = [Lfaction[k] for k in lanesLoc2glob]
         
-        plt.figure()
-        xlist = [nodes[no][0] for no in range(len(nodes))]
-        ylist = [nodes[no][1] for no in range(len(nodes))]
-        plt.scatter(xlist, ylist, color='b')
+        loc_ax.clear()
+        loc_ax.title.set_text(systems.sysnames[i])
+        xlist, ylist = zip(*nodes)
+        loc_ax.scatter(xlist, ylist, color='b')
         
-        for j in range(len(aloc)):
+        for j, jj in enumerate(lanesLoc2glob):
             if aloc[j]:
-                jj = lanesLoc2glob[j]
-
                 no1 = sil[jj]
                 no2 = sjl[jj]
             
-                x1 = nodes[no1][0]
-                x2 = nodes[no2][0]
-                y1 = nodes[no1][1]
-                y2 = nodes[no2][1]
+                x1, y1 = nodes[no1]
+                x2, y2 = nodes[no2]
             
                 col = FACTION_COLORS[ Lfaction[jj] ]
-                plt. plot([x1,x2], [y1,y2], color=col)
+                loc_ax.plot([x1,x2], [y1,y2], color=col)
         
-        # Pass to global
-        plt.show()
+    plt.show()
