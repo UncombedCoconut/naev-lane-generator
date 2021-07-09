@@ -1,4 +1,7 @@
+import math
+import numpy as np
 import os
+import scipy.sparse as sp
 import xml.etree.ElementTree as ET
 
 def parse_pos(pos):
@@ -34,6 +37,38 @@ def readAssets( path ):
         assets[name] = ( x, y, faction, population, ran )
     
     return assets
+
+
+# Creates anchors to prevent the matrix from being singular
+# Anchors are jumpoints, there is 1 per connected set of systems
+# A Robin condition will be added to these points and we will check the rhs
+# thanks to them because in u (not utilde) the flux on these anchors should
+# be 0, otherwise, it means that the 2 non-null terms on the rhs are on
+# separate sets of systems.
+def createAnchors(): # TODO : understand what's going on with anchors
+    anchorSys = [
+                 "Alteris",
+                 "Flow",
+                 "Zied",        # TODO : be sure this one is necessary
+                 "Qorel",
+                ]
+
+    anchorJps = [
+                 "Delta Pavonis",
+                 "Aesria",
+                 "Pudas",
+                 "Firk",
+                ]
+
+    anchorAst = [
+                 "Darkshed",
+                 "Sevlow",
+                 "Bon Sebb",
+                 "Qorellia",
+                ]
+
+    return (anchorSys, anchorJps, anchorAst)
+
 
 class Systems:
     '''Readable representation of the systems.'''
@@ -164,3 +199,42 @@ class Systems:
             i += 1
 
         self.assts = (presass,factass)
+
+        connect = np.zeros((nsys,nsys)) # Connectivity matrix for systems. TODO : use sparse
+        anchorSys, anchorJps, anchorAst = createAnchors()
+
+        for i, (jpname, autopos, loc2globi, jp2loci, namei) in enumerate(zip(self.jpnames, self.autoposs, self.loc2globs, self.jp2locs, self.sysnames)):
+            #print(namei)
+            for j in range(len(jpname)):
+                k = self.sysdict[jpname[j]] # Get the index of target
+                connect[i,k] = 1 # Systems connectivity
+                connect[k,i] = 1
+
+                if (namei in anchorSys) and (jpname[j] in anchorJps): # Add to anchors
+                    self.anchors.append( loc2globi[jp2loci[j]] )
+
+                if autopos[j]: # Compute autopos stuff
+                    theta = math.atan2( self.ylist[k]-self.ylist[i], self.xlist[k]-self.xlist[i] )
+                    x = self.radius[i] * math.cos(theta)
+                    y = self.radius[i] * math.sin(theta)
+                    self.nodess[i][jp2loci[j]] = (x,y) # Now we have the position
+
+        # Compute distances.
+        self.distances = sp.csgraph.dijkstra(connect)
+
+        # Use distances to compute ranged presences
+        for i in range(nsys):
+            for j in range(nsys):
+                sysas = self.sysass[j]
+                for k in range(len(sysas)):
+                    info = self.assets[sysas[k]] # not really optimized, but should be OK
+                    if info[2] in factions.keys():
+                        fact = factions[ info[2] ]
+                        pres = info[3]
+                        ran = info[4]
+                        d = self.distances[i,j]
+                        if d <= ran:
+                            #self.presences[i][fact] += pres/(2**d)
+                            self.presences[i][fact] += pres / (1+d)
+
+            # TODO maybe : ensure positive presence
