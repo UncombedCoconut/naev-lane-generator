@@ -37,7 +37,7 @@ def readAssets( path ):
 
 class Systems:
     '''Readable representation of the systems.'''
-    def __init__( self, path, factions ):
+    def __init__( self, path, factions, skip_hidden=True, skip_exitonly=True, skip_uninhabited=False ):
         self.assets  = readAssets( '../naev/dat/assets/' )
 
         self.sysdict = {} # This dico will give index of systems
@@ -98,12 +98,12 @@ class Systems:
                 aslist = assts.findall('asset')
                 for pnt in aslist :
                     asname = pnt.text
-                    sysas.append(asname)
                     info = self.assets[asname]
                     if info[3] > 0: # Check the asset is actually inhabited
                         #if info[2] in factions.keys(): # Increment presence
                          #   presence[ factions[info[2]] ] += info[3]
                         if info[0] != None: # Check it's not a virual asset
+                            sysas.append(asname)
                             nodes.append( (info[0], info[1]) )
                             loc2glob.append(nglob)
                             self.ass2g.append(nglob)
@@ -135,10 +135,10 @@ class Systems:
             for jpt in jplist :
 
                 hid = jpt.find('hidden')
-                if hid != None:  # Jump is hidden : don't consider it
+                if skip_hidden and hid != None:  # Jump is hidden : don't consider it
                     continue
 
-                xit = jpt.find('exitonly')
+                xit = skip_exitonly and jpt.find('exitonly')
                 if xit != None:  # Jump is exit only : don't consider it
                     continue
 
