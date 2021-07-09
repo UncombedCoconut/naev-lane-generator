@@ -5,8 +5,8 @@ import scipy.sparse as sp
 import scipy.sparse.linalg as lgs
 import scipy.linalg as slg
 import math
-import time
 
+from lanes_perf import timed, timer
 from lanes_ui import printLanes
 from lanes_systems import Systems
 
@@ -135,9 +135,6 @@ def inSysStiff( nodess, factass, g2ass, loc2globNs ):
                 sr.append((fn,fm)) # This tells who is allowed to build along the lane
                 system.append(k)
                 
-#                if fn==0 or fm==0:
-#                   print(fm,fn)
-                
                 loc2glob.append(ii)
                 ii += 1
                 
@@ -199,7 +196,6 @@ class ProcessedSystems(Systems):
         # Compute distances. 
         distances = sp.csgraph.dijkstra(connect)
 
-        #print(distances)
         # Use distances to compute ranged presences
         for i in range(nsys):
             for j in range(nsys):
@@ -215,9 +211,6 @@ class ProcessedSystems(Systems):
                             #self.presences[i][fact] += pres/(2**d)
                             self.presences[i][fact] += pres / (1+d)
 
-#            if self.sysnames[i] == "Raelid":#"Alteris":
-#                print(i)
-#                print(self.presences[i])
             # TODO maybe : ensure positive presence
 
 
@@ -257,17 +250,12 @@ class ProcessedSystems(Systems):
         self.sysdist = (distances,self.g2sys)
 
 
-# Computes the conductivity matrix
+@timed
 def buildStiffness( default_lanes, internal_lanes, activated, alpha, anchors ):
-    
-    def_si  = default_lanes[0]
-    def_sj  = default_lanes[1]
-    def_sv  = default_lanes[2]
-    
-    int_si  = internal_lanes[0]
-    int_sj  = internal_lanes[1]
-    int_sv0 = internal_lanes[2]
-    #print(np.max(np.c_[internal_lanes[2]]))
+    '''Computes the conductivity matrix'''
+    def_si, def_sj, def_sv = default_lanes[:3]
+    int_si, int_sj, int_sv0  = internal_lanes[:3]
+
     # Take activated lanes into account
     int_sv = int_sv0.copy()
     for i in range(len(int_sv0)):
@@ -320,6 +308,7 @@ def buildStiffness( default_lanes, internal_lanes, activated, alpha, anchors ):
 
 # Gives the matrix that computes penibility form potentials
 # By chance, this does not depend on the presence of lane
+@timed
 def PenMat( nass, ndof, internal_lanes, utilde, ass2g, assts, sysdist ):
     presass = assts[0]
     factass = assts[1]
@@ -392,8 +381,7 @@ def PenMat( nass, ndof, internal_lanes, utilde, ass2g, assts, sysdist ):
         D[k] = sp.csr_matrix( ( dv[k], (di[k], dj[k]) ), (P.shape[1], P.shape[1]) )
     #print(lgs.norm(D[0]-D[1], 'fro'))
     
-    si = internal_lanes[0]
-    sj = internal_lanes[1]
+    si, sj = internal_lanes[:2]
     
     # Then : the matrix that gives penibility on each internal lane from u
     qi = []
@@ -416,10 +404,9 @@ def PenMat( nass, ndof, internal_lanes, utilde, ass2g, assts, sysdist ):
 
 # Get the gradient from state and adjoint state
 # Luckly, this does not depend on the stiffness itself (by linearity wrt. stiffness)
+@timed
 def getGradient( internal_lanes, u, lamt, alpha, PP, PPl, pres_0 ):
-    si = internal_lanes[0]
-    sj = internal_lanes[1]
-    sv = internal_lanes[2]
+    si, sj, sv = internal_lanes[:3]
     sr = internal_lanes[6] # Tells who has right to build on each lane
     sy = internal_lanes[7] # Tells the system
     
@@ -434,7 +421,6 @@ def getGradient( internal_lanes, u, lamt, alpha, PP, PPl, pres_0 ):
 
     nfact = len(PPl)
     gl = []
-    #t0 = time.perf_counter()
     #ut = u.transpose()
     for k in range(nfact): # .2
         lal = lamt.dot(PPl[k])
@@ -462,18 +448,13 @@ def getGradient( internal_lanes, u, lamt, alpha, PP, PPl, pres_0 ):
             #glk[i] = alpha*sv[i] * ( LUTl[sis, sis] + LUTl[sjs, sjs] - LUTl[sis, sjs] - LUTl[sjs, sis] )
             
         gl.append(glk)
-    #t2 = time.perf_counter()
-    #print(t2-t0)
     return (g,gl)
         
 
 # Activates the best lane in each system
 def activateBest( internal_lanes, g, activated, Lfaction, nodess ):
     # Find lanes to keep in each system
-    sv  = internal_lanes[2]
-    #sil = internal_lanes[3]
-    #sjl = internal_lanes[4]
-    lanesLoc2globs = internal_lanes[5]
+    sv, sil, sjl, lanesLoc2globs = internal_lanes[2:6]
     nsys = len(lanesLoc2globs)
     
     g1 = g * np.c_[sv] # Short lanes are more interesting
@@ -506,11 +487,7 @@ def activateBest( internal_lanes, g, activated, Lfaction, nodess ):
 # Activates the best lane in each system for each faction
 def activateBestFact( internal_lanes, g, gl, activated, Lfaction, nodess, pres_c, pres_0 ):
     # Find lanes to keep in each system
-    sv  = internal_lanes[2]
-    #sil = internal_lanes[3]
-    #sjl = internal_lanes[4]
-    lanesLoc2globs = internal_lanes[5]
-    sr = internal_lanes[6]
+    sv, sil, sjl, lanesLoc2globs, sr  = internal_lanes[2:7]
     nsys = len(lanesLoc2globs)
     
     nfact = len(pres_c[0])
@@ -571,6 +548,7 @@ def activateBestFact( internal_lanes, g, gl, activated, Lfaction, nodess, pres_c
     return 1
 
 
+@timed
 def optimizeLanes( systems, alpha=9 ):
     '''Optimize the lanes. alpha is the efficiency parameter for lanes.'''
     sz = len(systems.internal_lanes[0])
@@ -593,10 +571,8 @@ def optimizeLanes( systems, alpha=9 ):
         # Compute direct and adjoint state
         if i >= 1:
             utildp = utilde
-        #start = time.perf_counter()
-        #print(stiff.count_nonzero())
-        utilde = lgs.spsolve( stiff, ftilde ) # 0.11 s
-        #end = time.perf_counter()
+        with timer('spsolve: utilde'):
+            utilde = lgs.spsolve( stiff, ftilde ) # 0.11 s
 
         # Check stopping condition
         nu = np.linalg.norm(utilde,'fro')
@@ -618,12 +594,9 @@ def optimizeLanes( systems, alpha=9 ):
             
             QQ = (Q.transpose()).dot(Q)
             #QQ = QQ.todense()
-            #start = time.perf_counter()
-            PP0 = P.dot(P.transpose())
-            #print(PP0.shape)
-            PP = PP0.todense() # PP is actually not sparse
-            #end = time.perf_counter()
-            #print(end-start)
+            with timer('Calculate dense P P*'):
+                PP0 = P.dot(P.transpose())
+                PP = PP0.todense() # PP is actually not sparse
             PPl = [None]*nfact
             for k in range(nfact): # Assemble per-faction ponderators
                 Pp = P.dot(D[k])
@@ -644,7 +617,6 @@ def optimizeLanes( systems, alpha=9 ):
         activateBestFact( systems.internal_lanes, g, gl, activated, Lfaction, systems.nodess, pres_c, systems.presences ) # 0.01 s
 
     #print(np.max(np.c_[systems.internal_lanes[2]]))
-        #print(end - start)
 
     # And print the lanes
     print(np.linalg.norm(utilde,'fro'))
@@ -657,9 +629,5 @@ if __name__ == "__main__":
     factions = createFactions()
     systems = ProcessedSystems( '../naev/dat/ssys/', factions )
     
-    # Run the optim algo
-    a = time.perf_counter()
     activated, Lfaction = optimizeLanes( systems )
-    b = time.perf_counter()
-    print(b-a," s")
-    printLanes( systems.internal_lanes, activated, Lfaction, systems.nodess, systems.sysnames )
+    printLanes( systems.internal_lanes, activated, Lfaction, systems )
