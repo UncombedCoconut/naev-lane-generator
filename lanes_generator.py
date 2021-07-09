@@ -1,5 +1,7 @@
+#!/usr/bin/env python
 # This file generates safe lanes
 
+import copy
 import numpy as np
 import scipy.sparse as sp
 import scipy.sparse.linalg as lgs
@@ -144,36 +146,35 @@ def inSysStiff( nodess, factass, g2ass, loc2globNs ):
     return ( si, sj, sv, sil, sjl, loc2globs, sr, system )
 
 
-class ProcessedSystems(Systems):
+class SafeLaneProblem:
     '''Representation of the systems, with more calculated: nodes associated to jumps, connectivity matrix (for ranged presence).'''
-    def __init__( self, path, factions ):
-        super().__init__( path, factions )
+    def __init__( self, systems, factions ):
         si0 = [] #
         sj0 = [] #
         sv0 = [] # For the construction of the sparse weighted connectivity matrix
-        nsys = len(self.sysnames)
+        nsys = len(systems.sysnames)
         connect = np.zeros((nsys,nsys)) # Connectivity matrix for systems. TODO : use sparse
         anchorSys, anchorJps, anchorAst = createAnchors()
 
-        for i, (jpname, autopos, loc2globi, jp2loci, namei) in enumerate(zip(self.jpnames, self.autoposs, self.loc2globs, self.jp2locs, self.sysnames)):
+        for i, (jpname, autopos, loc2globi, jp2loci, namei) in enumerate(zip(systems.jpnames, systems.autoposs, systems.loc2globs, systems.jp2locs, systems.sysnames)):
             #print(namei)
             for j in range(len(jpname)):
-                k = self.sysdict[jpname[j]] # Get the index of target
+                k = systems.sysdict[jpname[j]] # Get the index of target
                 connect[i,k] = 1 # Systems connectivity
                 connect[k,i] = 1
 
-                jpnamek = self.jpdicts[k]
-                loc2globk = self.loc2globs[k]
-                jp2lock = self.jp2locs[k]
+                jpnamek = systems.jpdicts[k]
+                loc2globk = systems.loc2globs[k]
+                jp2lock = systems.jp2locs[k]
 
                 if (namei in anchorSys) and (jpname[j] in anchorJps): # Add to anchors
-                    self.anchors.append( loc2globi[jp2loci[j]] )
+                    systems.anchors.append( loc2globi[jp2loci[j]] )
 
                 if autopos[j]: # Compute autopos stuff
-                    theta = math.atan2( self.ylist[k]-self.ylist[i], self.xlist[k]-self.xlist[i] )
-                    x = self.radius[i] * math.cos(theta)
-                    y = self.radius[i] * math.sin(theta)
-                    self.nodess[i][jp2loci[j]] = (x,y) # Now we have the position
+                    theta = math.atan2( systems.ylist[k]-systems.ylist[i], systems.xlist[k]-systems.xlist[i] )
+                    x = systems.radius[i] * math.cos(theta)
+                    y = systems.radius[i] * math.sin(theta)
+                    systems.nodess[i][jp2loci[j]] = (x,y) # Now we have the position
 
                 if not ( namei in jpnamek.keys() ):
                     continue # It's an exit-only : we don't count this one as a link
@@ -197,25 +198,26 @@ class ProcessedSystems(Systems):
         distances = sp.csgraph.dijkstra(connect)
 
         # Use distances to compute ranged presences
+        self.ranged_presences = copy.deepcopy(systems.presences)
         for i in range(nsys):
             for j in range(nsys):
-                sysas = self.sysass[j]
+                sysas = systems.sysass[j]
                 for k in range(len(sysas)):
-                    info = self.assets[sysas[k]] # not really optimized, but should be OK
+                    info = systems.assets[sysas[k]] # not really optimized, but should be OK
                     if info[2] in factions.keys():
                         fact = factions[ info[2] ]
                         pres = info[3]
                         ran = info[4]
                         d = distances[i,j]
                         if d <= ran:
-                            #self.presences[i][fact] += pres/(2**d)
-                            self.presences[i][fact] += pres / (1+d)
+                            #self.ranged_presences[i][fact] += pres/(2**d)
+                            self.ranged_presences[i][fact] += pres / (1+d)
 
             # TODO maybe : ensure positive presence
 
 
         # Get the stiffness inside systems
-        self.internal_lanes = inSysStiff( self.nodess, self.assts[1], self.g2ass, self.loc2globs )
+        self.internal_lanes = inSysStiff( systems.nodess, systems.assts[1], systems.g2ass, systems.loc2globs )
 
         # Merge both and generate matrix
         si = si0 + self.internal_lanes[0]
@@ -247,7 +249,7 @@ class ProcessedSystems(Systems):
         self.stiff = sp.csr_matrix( ( svv, (sii, sjj) ) )
 
         self.default_lanes = (si0,sj0,sv0)
-        self.sysdist = (distances,self.g2sys)
+        self.sysdist = (distances,systems.g2sys)
 
 
 @timed
@@ -549,14 +551,14 @@ def activateBestFact( internal_lanes, g, gl, activated, Lfaction, nodess, pres_c
 
 
 @timed
-def optimizeLanes( systems, alpha=9 ):
+def optimizeLanes( systems, problem, alpha=9 ):
     '''Optimize the lanes. alpha is the efficiency parameter for lanes.'''
-    sz = len(systems.internal_lanes[0])
-    ndof = systems.stiff.shape[0]
+    sz = len(problem.internal_lanes[0])
+    ndof = problem.stiff.shape[0]
     activated = [False] * sz # Initialization : no lane is activated
     Lfaction = [-1] * sz;
-    pres_c = systems.presences.copy()
-    nfact = len(systems.presences[0])
+    pres_c = problem.ranged_presences.copy()
+    nfact = len(problem.ranged_presences[0])
     
     nass = len(systems.ass2g)
     
@@ -566,7 +568,7 @@ def optimizeLanes( systems, alpha=9 ):
     
     niter = 20
     for i in range(niter):
-        stiff = buildStiffness( systems.default_lanes, systems.internal_lanes, activated, alpha, systems.anchors ) # 0.02 s
+        stiff = buildStiffness( problem.default_lanes, problem.internal_lanes, activated, alpha, systems.anchors ) # 0.02 s
 
         # Compute direct and adjoint state
         if i >= 1:
@@ -587,7 +589,7 @@ def optimizeLanes( systems, alpha=9 ):
         # Compute QQ and PP, and use utilde to detect connected parts of the mesh
         # It's in the loop, but only happends once
         if i == 0: # .5 s
-            Pi = PenMat( nass, ndof, systems.internal_lanes, utilde, systems.ass2g, systems.assts, systems.sysdist )
+            Pi = PenMat( nass, ndof, problem.internal_lanes, utilde, systems.ass2g, systems.assts, problem.sysdist )
             P = Pi[0]
             Q = Pi[1] 
             D = Pi[2]
@@ -608,15 +610,15 @@ def optimizeLanes( systems, alpha=9 ):
         lamt = lgs.spsolve( stiff, rhs ) #.11 s # TODO if possible : reuse cholesky factorization
         
         # Compute the gradient.
-        gNgl = getGradient( systems.internal_lanes, utilde, lamt, alpha, PP, PPl, pres_c ) # 0.2 s
+        gNgl = getGradient( problem.internal_lanes, utilde, lamt, alpha, PP, PPl, pres_c ) # 0.2 s
         g = gNgl[0]
         gl = gNgl[1]
 
         # Activate one lane per system
-        #activateBest( systems.internal_lanes, g, activated, Lfaction, nodess ) # 0.01 s
-        activateBestFact( systems.internal_lanes, g, gl, activated, Lfaction, systems.nodess, pres_c, systems.presences ) # 0.01 s
+        #activateBest( problem.internal_lanes, g, activated, Lfaction, nodess ) # 0.01 s
+        activateBestFact( problem.internal_lanes, g, gl, activated, Lfaction, systems.nodess, pres_c, problem.ranged_presences ) # 0.01 s
 
-    #print(np.max(np.c_[systems.internal_lanes[2]]))
+    #print(np.max(np.c_[problem.internal_lanes[2]]))
 
     # And print the lanes
     print(np.linalg.norm(utilde,'fro'))
@@ -627,7 +629,8 @@ def optimizeLanes( systems, alpha=9 ):
 
 if __name__ == "__main__":
     factions = createFactions()
-    systems = ProcessedSystems( '../naev/dat/ssys/', factions )
+    systems = Systems( '../naev/dat/ssys/', factions )
+    problem = SafeLaneProblem( systems, factions )
     
-    activated, Lfaction = optimizeLanes( systems )
-    printLanes( systems.internal_lanes, activated, Lfaction, systems )
+    activated, Lfaction = optimizeLanes( systems, problem )
+    printLanes( problem.internal_lanes, activated, Lfaction, systems )
