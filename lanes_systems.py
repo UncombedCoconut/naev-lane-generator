@@ -1,8 +1,11 @@
+from collections import namedtuple
 import math
 import numpy as np
 import os
 import scipy.sparse as sp
 import xml.etree.ElementTree as ET
+
+Asset = namedtuple('Asset', 'x y faction population ran')
 
 def parse_pos(pos):
     if pos is None:
@@ -34,7 +37,7 @@ def readAssets( path ):
             population = float(presence.find('value').text)
             ran = int(presence.find('range').text)
 
-        assets[name] = ( x, y, faction, population, ran )
+        assets[name] = Asset( x, y, faction, population, ran )
     
     return assets
 
@@ -73,7 +76,7 @@ def createAnchors(): # TODO : understand what's going on with anchors
 class Systems:
     '''Readable representation of the systems.'''
     def __init__( self, path, factions, skip_hidden=True, skip_exitonly=True, skip_uninhabited=False ):
-        self.assets  = readAssets( '../naev/dat/assets/' )
+        assets  = readAssets( '../naev/dat/assets/' )
 
         self.sysdict = {} # This dico will give index of systems
         self.sysnames = [] # List giving the invert of self.sysdict
@@ -133,23 +136,16 @@ class Systems:
                 aslist = assts.findall('asset')
                 for pnt in aslist :
                     asname = pnt.text
-                    info = self.assets[asname]
-                    if info[3] > 0: # Check the asset is actually inhabited
-                        #if info[2] in factions.keys(): # Increment presence
-                         #   presence[ factions[info[2]] ] += info[3]
-                        if info[0] != None: # Check it's not a virual asset
+                    info = assets[asname]
+                    if info.population > 0 and info.x is not None: # Populated, not a virual asset
                             sysas.append(asname)
-                            nodes.append( (info[0], info[1]) )
+                            nodes.append( (info.x, info.y) )
                             loc2glob.append(nglob)
                             self.ass2g.append(nglob)
                             self.g2ass.append(nasg)
                             self.g2sys.append(i)
-                            if info[2] in factions.keys(): # Store presence
-                                presass.append(info[3])
-                                factass.append(factions[info[2]])
-                            else: # Someone that does not build
-                                presass.append(info[3])
-                                factass.append(-1)
+                            presass.append(info.population)
+                            factass.append(factions.get(info.faction, -1))
                             nglob += 1
                             nass += 1
                             nasg += 1
@@ -227,14 +223,13 @@ class Systems:
             for j in range(nsys):
                 sysas = self.sysass[j]
                 for k in range(len(sysas)):
-                    info = self.assets[sysas[k]] # not really optimized, but should be OK
-                    if info[2] in factions.keys():
-                        fact = factions[ info[2] ]
-                        pres = info[3]
-                        ran = info[4]
+#Asset = namedtuple('Asset', 'x y faction population ran')
+                    info = assets[sysas[k]] # not really optimized, but should be OK
+                    if info.faction in factions:
+                        fact = factions[ info.faction ]
                         d = self.distances[i,j]
-                        if d <= ran:
-                            #self.presences[i][fact] += pres/(2**d)
-                            self.presences[i][fact] += pres / (1+d)
+                        if d <= info.ran:
+                            #self.presences[i][fact] += info.population/(2**d)
+                            self.presences[i][fact] += info.population / (1+d)
 
             # TODO maybe : ensure positive presence
