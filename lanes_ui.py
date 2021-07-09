@@ -17,7 +17,7 @@ def printLanes( internal_lanes, activated, Lfaction, systems ):
             j = systems.sysdict[target]
             glob_ax.plot([systems.xlist[i], systems.xlist[j]], [systems.ylist[i], systems.ylist[j]], color='r')
 
-    annot = glob_ax.annotate('', xy=(0, 0), xytext=(20, 20), textcoords='offset points', bbox={'fc': 'w'})
+    annot = glob_ax.annotate('', xy=(0, 0), xytext=(10, 10), textcoords='offset points', bbox={'fc': 'w'})
     annot.set_visible(False)
 
     def hover(event):
@@ -39,6 +39,7 @@ def printLanes( internal_lanes, activated, Lfaction, systems ):
 
     def plot_system(i):
         nodes = systems.nodess[i]
+        names = systems.sysass[i] + [f'\u2192{jn}' for jn in systems.jpnames[i]]
         lanesLoc2glob = lanesLoc2globs[i]
         aloc = [activated[k] for k in lanesLoc2glob]
         #floc = [Lfaction[k] for k in lanesLoc2glob]
@@ -47,6 +48,8 @@ def printLanes( internal_lanes, activated, Lfaction, systems ):
         loc_ax.title.set_text(systems.sysnames[i])
         xlist, ylist = zip(*nodes)
         loc_ax.scatter(xlist, ylist, color='b')
+        for xy, name in zip(nodes, names):
+            loc_ax.annotate(name, xy=xy, xytext=(10, 10), textcoords='offset points', bbox={'fc': 'w'})
         
         for j, jj in enumerate(lanesLoc2glob):
             if aloc[j]:
