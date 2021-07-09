@@ -3,6 +3,7 @@
 
 import copy
 import numpy as np
+from operator import neg
 import scipy.sparse as sp
 import scipy.sparse.linalg as lgs
 import scipy.linalg as slg
@@ -226,25 +227,25 @@ class SafeLaneProblem:
         sz = len(si)
 
         # Build the sparse matrix
-        sii = [0]*4*sz
-        sjj = [0]*4*sz
-        svv = [0.]*4*sz
-        for k in range(sz):
-            sii[4*k]   = si[k]
-            sjj[4*k]   = si[k]
-            svv[4*k]   = sv[k]
+        sii = [0]*(4*sz)
+        sjj = [0]*(4*sz)
+        svv = [0.]*(4*sz)
 
-            sii[4*k+1] = sj[k]
-            sjj[4*k+1] = sj[k]
-            svv[4*k+1] = sv[k]
+        sii[0::4] = si
+        sjj[0::4] = si
+        svv[0::4] = sv
 
-            sii[4*k+2] = si[k]
-            sjj[4*k+2] = sj[k]
-            svv[4*k+2] = - sv[k]
+        sii[1::4] = sj
+        sjj[1::4] = sj
+        svv[1::4] = sv
 
-            sii[4*k+3] = sj[k]
-            sjj[4*k+3] = si[k]
-            svv[4*k+3] = - sv[k]
+        sii[2::4] = si
+        sjj[2::4] = sj
+        svv[2::4] = map(neg, sv)
+
+        sii[3::4] = sj
+        sjj[3::4] = si
+        svv[3::4] = map(neg, sv)
 
         self.stiff = sp.csr_matrix( ( svv, (sii, sjj) ) )
 
@@ -271,29 +272,25 @@ def buildStiffness( default_lanes, internal_lanes, activated, alpha, anchors ):
     sz = len(si)
     
     # Build the sparse matrix
-    sii = [0]*4*sz
-    sjj = [0]*4*sz
-    svv = [0.]*4*sz
-    for k in range(sz):
-        sik = si[k]
-        sjk = sj[k]
-        svk = sv[k]
-        
-        sii[4*k]   = sik
-        sjj[4*k]   = sik
-        svv[4*k]   = svk
-        
-        sii[4*k+1] = sjk
-        sjj[4*k+1] = sjk
-        svv[4*k+1] = svk
-        
-        sii[4*k+2] = sik
-        sjj[4*k+2] = sjk
-        svv[4*k+2] = - svk
-        
-        sii[4*k+3] = sjk
-        sjj[4*k+3] = sik
-        svv[4*k+3] = - svk
+    sii = [0]*(4*sz)
+    sjj = [0]*(4*sz)
+    svv = [0.]*(4*sz)
+
+    sii[0::4]   = si
+    sjj[0::4]   = si
+    svv[0::4]   = sv
+
+    sii[1::4] = sj
+    sjj[1::4] = sj
+    svv[1::4] = sv
+
+    sii[2::4] = si
+    sjj[2::4] = sj
+    svv[2::4] = map(neg, sv)
+
+    sii[3::4] = sj
+    sjj[3::4] = si
+    svv[3::4] = map(neg, sv)
 
     # impose Robin condition at anchors (because of singularity)
     mu = max(sv)  # Just a parameter to make a Robin condition that does not spoil the spectrum of the matrix
